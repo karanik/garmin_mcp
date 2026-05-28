@@ -47,8 +47,8 @@ def _decode_gear_change(data: int) -> dict:
       bits 24-31: front gear teeth count
     """
     rear_gear_num = data & 0xFF
-    front_gear_num = (data >> 8) & 0xFF
-    rear_teeth = (data >> 16) & 0xFF
+    rear_teeth = (data >> 8) & 0xFF
+    front_gear_num = (data >> 16) & 0xFF
     front_teeth = (data >> 24) & 0xFF
     return {
         "rear_gear_num": rear_gear_num,
@@ -594,6 +594,7 @@ def _parse_fit(fit_bytes: bytes, include_records: bool) -> dict:
     # Track last values for context at shift time
     last_cadence: Optional[float] = None
     last_grade: Optional[float] = None
+    last_gear_ratio: Optional[float] = None
 
     for message in fitfile.get_messages():
         msg_type = message.name
@@ -693,6 +694,9 @@ def _parse_fit(fit_bytes: bytes, include_records: bool) -> dict:
                 if last_grade is not None:
                     shift_entry["grade_at_shift_pct"] = round(last_grade, 1)
 
+                if last_gear_ratio is not None:
+                    shift_entry["gear_ratio_at_shift"] = round(last_gear_ratio, 1)
+
                 if gear_data_raw is not None:
                     try:
                         decoded = _decode_gear_change(int(gear_data_raw))
@@ -730,8 +734,15 @@ def _parse_fit(fit_bytes: bytes, include_records: bool) -> dict:
                 last_cadence = cadence
 
             grade = _get_field(message, "grade")
+            if grade is None:
+                grade = _get_field(message, "currGrade")
+
             if grade is not None:
                 last_grade = grade
+
+            gear_ratio = _get_field(message, "currGearRatio")
+            if gear_ratio is not None:
+                last_gear_ratio = gear_ratio
 
             record: Dict[str, Any] = {
                 "timestamp": str(_get_field(message, "timestamp") or ""),
